@@ -1,2 +1,5 @@
 # npm moudules
 /app/node_modules
+
+# Contract Build
+/vote/build
