@@ -3,3 +3,10 @@
 
 # Contract Build
 /vote/build
+
+# C++ object File
+*.o
+
+# Excutable File
+*.exe
+*.out
