@@ -7,42 +7,22 @@ from flask import Flask, request
 from multiprocessing import Process, Pipe
 import ecdsa
 import codecs
-import rsa
-import prime
+import elgamal
 from utils import *
 from miner_config import MINER_ADDRESS, MINER_NODE_URL, PEER_NODES
 import os
     
 node = Flask(__name__)
 
-PUBLIC_KEY_SIZE = 38
+PUBLIC_KEY_SIZE = 25
 
 
 class Block:
     def __init__(self, index, timestamp, data, next_public, previous_private=None):
-        """Returns a new Block object. Each block is "chained" to its previous
-        by calling its unique hash.
-
-        Args:
-            index (int): Block number.
-            timestamp (int): Block creation timestamp.
-            data (str): Data to be sent.
-            next_public(str): String representing previous block unique hash.
-            previous_private(str): String representing previous block unique hash.
-
-        Attrib:
-            index (int): Block number.
-            timestamp (int): Block creation timestamp.
-            data (str): Data to be sent.
-            next_public(str): Next Block's public Key from This Block Header Hash.
-            previous_private(str): Previous Block's Private Key. When this block is mined, find Previous Block's Private Keys.
-            hash(str): Current block's Merkle Root.
-
-        """
         self.index = index
         self.timestamp = timestamp
         self.data = data
-        self.body_hash = self.body_hash()   # 머클루트를 대신함
+        self.body_hash = self.body_hash() 
         self.next_public = next_public
         self.previous_private = previous_private
 
@@ -52,32 +32,19 @@ class Block:
         return sha.hexdigest()
 
     def body_hash(self):
-        """Creates the unique hash for the block. It uses sha256."""
         sha = hashlib.sha256()
         sha.update(str(self.data).encode('utf-8'))
         return sha.hexdigest()
         
 
 def create_genesis_block():
-    """To create each block, it needs the hash of the previous one. First
-    block has no previous, so it must be created manually (with index zero
-     and arbitrary previous hash)"""
-    cipher = rsa.RSA(bits=PUBLIC_KEY_SIZE, seed=0xffffffffffffff)
-    # TODO cipher 를 생성할 때 임의로 지정한 값을 사용할 것.
-    return Block(0, time.time(), {
-        "transactions": None
-    }, cipher)
+    cipher = elgamal.generate_keys(seed=0xffffffffffffff,iNumBits=PUBLIC_KEY_SIZE)
+    return Block(0, time.time(), {"transactions": None}, cipher)
 
 
 def create_second_block():
-    """To create each block, it needs the hash of the previous one. First
-    block has no previous, so it must be created manually (with index zero
-     and arbitrary previous hash)"""
-    cipher = rsa.RSA(bits=PUBLIC_KEY_SIZE, seed=int(BLOCKCHAIN[0].hash_header(), 16))
-    # TODO cipher 를 생성할 때 genesis_block 의 해시값을 이용할 것.
-    return Block(1, time.time(), {
-        "transactions": None
-    }, cipher)
+    cipher = elgamal.generate_keys(seed=int(BLOCKCHAIN[0].hash_header(), 16),iNumBits = PUBLIC_KEY_SIZE)
+    return Block(1, time.time(), {"transactions": None}, cipher)
 
 # Node's blockchain copy
 BLOCKCHAIN = [create_genesis_block()]
@@ -92,24 +59,14 @@ NODE_PENDING_TRANSACTIONS = []
 
 # TODO publicKey 를 받아 쌍이 되는 개인키를 찾는 함수.
 # 만약, 다른 노드가 먼저 발견하게 되면 False 를 반환한다.
-def proof_of_work(public_key, blockchain):
-    before_private = public_key
-    l = before_private.bits >> 1
-    # print(l)
-
-    p = 2 ** l
+def proof_of_work(pub, blockchain):
+    i=0
     start_time = time.time()
     while True:
-        if prime.is_probable_prime(p, None, l // 8):
-            if before_private.key.N % p == 0:
-                q = before_private.key.N // p
-                if prime.is_probable_prime(q, None, l//8):
-                    before_private.key.p = p
-                    before_private.key.q = q
-                    before_private.key.phi = (p-1)*(q-1)
-                    before_private.key.d = modinv(before_private.key.e, before_private.key.phi)
-                    break
-                    
+        if pub.h == elgamal.modexp(pub.g,i,pub.p) :
+            before_private = elgamal.PrivateKey(pub.p,pub.g,i,pub.iNumBits)
+            break
+    
         if (time.time()-start_time) > 30:
             start_time = time.time()
             # If any other node got the proof, stop searching
@@ -118,7 +75,7 @@ def proof_of_work(public_key, blockchain):
                 # (False: another node got proof first, new blockchain)
                 return False, new_blockchain
                 # Once that number is found, we can return it as a proof of our work            
-        p = p+1
+        i = i+1
     return before_private, blockchain
 
 
@@ -155,17 +112,15 @@ def mine(a, blockchain, node_pending_transactions):
                 "to": MINER_ADDRESS,
                 "amount": 1})
             # Now we can gather the data needed to create the new block
+            
             new_block_data = {
                 "transactions": list(NODE_PENDING_TRANSACTIONS)
             }
             
             new_block_index = last_block.index + 2
             new_block_timestamp = time.time()
-
             before_hash = BLOCKCHAIN[-1].hash_header()
-            
-            # TODO 이전블록의 해시값을 이용하여 cipher 생성.
-            cipher = rsa.RSA(bits=PUBLIC_KEY_SIZE, seed=int(before_hash, 16))
+            cipher = elgamal.generate_keys(iNumBits=PUBLIC_KEY_SIZE, seed=int(before_hash, 16))
             new_block_next_public = cipher
 
             # Empty transaction list
@@ -179,8 +134,8 @@ def mine(a, blockchain, node_pending_transactions):
                 "index": mined_block.index,
                 "timestamp": str(mined_block.timestamp),
                 "body_hash": str(int(mined_block.body_hash, 16)),
-                "next_public": str(hex(mined_block.next_public.key.N)) + ", " + str(hex(mined_block.next_public.key.e)),
-                "previous_private": str(hex(mined_block.previous_private.key.d)),
+                "next_public": str(hex(mined_block.next_public.g)) + ", " + str(hex(mined_block.next_public.h)),
+                "previous_private": str(hex(mined_block.previous_private.x)),
                 "data": mined_block.data
             }, indent=4) + "\n")
             a.send(BLOCKCHAIN)
@@ -244,8 +199,8 @@ def get_blocks():
             "index": str(block.index),
             "timestamp": str(block.timestamp),
             "body_hash": str(block.body_hash),
-            "next_public": "( " + str(hex(block.next_public.key.N)) + ", " + str(hex(block.next_public.key.e)) + " )",
-            "previous_private": "( " + str(hex(block.previous_private.key.d)) + " )" if block.previous_private else None,
+            "next_public": "( " + str(hex(block.next_public.g)) + ", " + str(hex(block.next_public.h)) + ", " + str(hex(block.next_public.p)) +" )",
+            "previous_private": "( " + str(hex(block.previous_private.x)) + " )" if block.previous_private else None,
             "data": block.data
         }
         chain_to_send_json.append(block)

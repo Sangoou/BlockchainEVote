@@ -32,25 +32,25 @@ def wallet():
         2. Send coins to another wallet
         3. Check transactions
         4. Quit\n""")
-    if response == "1":
-        # Generate new wallet
-        print("""=========================================\n
-IMPORTANT: save this credentials or you won't be able to recover your wallet\n
-=========================================\n""")
-        generate_ECDSA_keys()
-    elif response == "2":
-        addr_from = input("From: introduce your wallet address (public key)\n")
-        private_key = input("Introduce your private key\n")
-        addr_to = input("To: introduce destination wallet address\n")
-        amount = input("Amount: number stating how much do you want to send\n")
-        print("=========================================\n\n")
-        print("Is everything correct?\n")
-        print("From: {0}\nPrivate Key: {1}\nTo: {2}\nAmount: {3}\n".format(addr_from, private_key, addr_to, amount))
-        response = input("y/n\n")
-        if response.lower() == "y":
-            send_transaction(addr_from, private_key, addr_to, amount)
-    elif response == "3":
-        check_transactions()
+        if response == "1":
+            # Generate new wallet
+            print("""=========================================\n
+    IMPORTANT: save this credentials or you won't be able to recover your wallet\n
+    =========================================\n""")
+            generate_ECDSA_keys()
+        elif response == "2":
+            addr_from = input("From: introduce your wallet address (public key)\n")
+            private_key = input("Introduce your private key\n")
+            addr_to = input("To: introduce destination wallet address\n")
+            amount = input("Amount: number stating how much do you want to send\n")
+            print("=========================================\n\n")
+            print("Is everything correct?\n")
+            print("From: {0}\nPrivate Key: {1}\nTo: {2}\nAmount: {3}\n".format(addr_from, private_key, addr_to, amount))
+            response = input("y/n\n")
+            if response.lower() == "y":
+                send_transaction(addr_from, private_key, addr_to, amount)
+        elif response == "3":
+            check_transactions()
 
 
 def send_transaction(addr_from, private_key, addr_to, amount):

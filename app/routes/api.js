@@ -2,7 +2,7 @@ var express = require('express');
 var router = express.Router();
 
 var Web3 = require("web3");
-var voteArtifacts = require("../../vote/build/contracts/Vote.json");
+var voteArtifacts = require("../../vote/contracts/Vote.sol");
 
 var adminAddress = "";
 var votersAddress = []
