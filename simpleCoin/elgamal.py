@@ -87,7 +87,8 @@ def jacobi( a, n ):
 #finds a primitive root for prime p
 #this function was implemented from the algorithm described here:
 #http://modular.math.washington.edu/edu/2007/spring/ent/ent-html/node31.html
-def find_primitive_root( p ):
+def find_primitive_root( p , seed):
+		random.seed(seed)
 		if p == 2:
 				return 1
 		#the prime divisors of p-1 are 2 and (p-1)/2 because
@@ -214,14 +215,14 @@ def generate_keys(seed, iNumBits, iConfidence=32):
     #g is the primitve root
     #x is random in (0, p-1) inclusive
     #h = g ^ x mod p
-    print(seed)
-
+    
     p = find_prime(iNumBits, iConfidence, seed)
-    g = find_primitive_root(p)
-    g = modexp( g, 2, p )
-    x = random.randint( 1, (p - 1) // 2 )
-    h = modexp(g,x,p)
-    #h = random.randint( 1, p - 1)
+    g = find_primitive_root(p,seed)
+    h = modexp( g, 2, p )
+    #x = random.randint( 1, p - 1)
+    #h = modexp(g,x,p)
+
+    h = random.randint( 1, p - 1)
 
     publicKey = PublicKey(p, g, h,iNumBits)
     #privateKey = PrivateKey(p, g, x, iNumBits)
@@ -282,17 +283,20 @@ def decrypt(key, cipher):
 		return decryptedText
 
 if __name__ == '__main__':
-    assert (sys.version_info >= (3,4))
-    pub = generate_keys(seed = 1234,iNumBits = 20)
-    #message = "My name is Ryan.  Here is some french text:  Maître Corbeau, sur un arbre perché.  Now some Chinese: 鋈 晛桼桾 枲柊氠 藶藽 歾炂盵 犈犆犅 壾, 軹軦軵 寁崏庲 摮 蟼襛 蝩覤 蜭蜸覟 駽髾髽 忷扴汥 "
-    #cipher = encrypt(pub, message)
-    #plain = decrypt(priv, cipher)
-    for i in range(1, (pub.p - 1) // 2) : 
-        if pub.h == modexp(pub.g,i,pub.p):
-            priv = PrivateKey(pub.p,pub.g,i,pub.iNumBits)
-
-    message = "My name is Ryan.  Here is some french text:  Maître Corbeau, sur un arbre perché.  Now some Chinese: 鋈 晛桼桾 枲柊氠 藶藽 歾炂盵 犈犆犅 壾, 軹軦軵 寁崏庲 摮 蟼襛 蝩覤 蜭蜸覟 駽髾髽 忷扴汥 "
-    cipher = encrypt(pub, message)
-    plain = decrypt(priv, cipher)      
-    print(message)
-    print(plain)      
+	assert (sys.version_info >= (3,4))
+	pub = generate_keys(seed = 833050814021254693158343911234888353695402778102174580258852673738983005,iNumBits = 20)
+	#message = "My name is Ryan.  Here is some french text:  Maître Corbeau, sur un arbre perché.  Now some Chinese: 鋈 晛桼桾 枲柊氠 藶藽 歾炂盵 犈犆犅 壾, 軹軦軵 寁崏庲 摮 蟼襛 蝩覤 蜭蜸覟 駽髾髽 忷扴汥 "
+	#cipher = encrypt(pub, message)
+	#plain = decrypt(priv, cipher)
+	
+	for i in range(1, pub.p) : 
+		if pub.h == modexp(pub.g,i,pub.p):
+			priv = PrivateKey(pub.p,pub.g,i,pub.iNumBits)
+	print(hex(pub.g))
+	print(hex(pub.h))
+	print(hex(pub.p))
+	message = "My name is Ryan.  Here is some french text:  Maître Corbeau, sur un arbre perché.  Now some Chinese: 鋈 晛桼桾 枲柊氠 藶藽 歾炂盵 犈犆犅 壾, 軹軦軵 寁崏庲 摮 蟼襛 蝩覤 蜭蜸覟 駽髾髽 忷扴汥 "
+	cipher = encrypt(pub, message)
+	plain = decrypt(priv, cipher)      
+	print(message)
+	print(plain)      

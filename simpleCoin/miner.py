@@ -8,27 +8,27 @@ from multiprocessing import Process, Pipe
 import ecdsa
 import codecs
 import elgamal
-from utils import *
 from miner_config import MINER_ADDRESS, MINER_NODE_URL, PEER_NODES
 import os
     
 node = Flask(__name__)
 
-PUBLIC_KEY_SIZE = 25
-
-
+PUBLIC_KEY_SIZE = 20
+DIFFICULTY = 4
+term = 100
 class Block:
-    def __init__(self, index, timestamp, data, next_public, previous_private=None):
+    def __init__(self, index, timestamp, data, next_public, nonce=None, previous_private=None):
         self.index = index
         self.timestamp = timestamp
         self.data = data
         self.body_hash = self.body_hash() 
         self.next_public = next_public
         self.previous_private = previous_private
+        self.nonce = nonce
 
     def hash_header(self):
         sha = hashlib.sha256()
-        sha.update((str(self.index)+str(self.timestamp)+str(self.body_hash)+str(self.previous_private)+str(self.next_public)).encode('utf-8'))
+        sha.update((str(self.index)+str(self.timestamp)+str(self.body_hash)+str(self.previous_private)+str(self.next_public)).encode('utf-8')+str(self.nonce).encode('utf-8'))
         return sha.hexdigest()
 
     def body_hash(self):
@@ -59,14 +59,16 @@ NODE_PENDING_TRANSACTIONS = []
 
 # TODO publicKey 를 받아 쌍이 되는 개인키를 찾는 함수.
 # 만약, 다른 노드가 먼저 발견하게 되면 False 를 반환한다.
-def proof_of_work(pub, blockchain):
+def proof_of_work(last_block, candidate_block, blockchain):
     i=0
     start_time = time.time()
     while True:
-        if pub.h == elgamal.modexp(pub.g,i,pub.p) :
-            before_private = elgamal.PrivateKey(pub.p,pub.g,i,pub.iNumBits)
+        #print("asdasd")
+
+        if last_block.next_public.h == elgamal.modexp(last_block.next_public.g,i,last_block.next_public.p) :
+            candidate_block.previous_private = elgamal.PrivateKey(last_block.next_public.p,last_block.next_public.g,i,last_block.next_public.iNumBits)
             break
-    
+
         if (time.time()-start_time) > 30:
             start_time = time.time()
             # If any other node got the proof, stop searching
@@ -76,12 +78,34 @@ def proof_of_work(pub, blockchain):
                 return False, new_blockchain
                 # Once that number is found, we can return it as a proof of our work            
         i = i+1
-    return before_private, blockchain
+    return proof_of_work_nonce(candidate_block, blockchain)
 
+def proof_of_work_nonce(candidate_block, blockchain):
+    incrementer = 0
+    start_time = time.time()
+    while True :
+        candidate_block.nonce = incrementer
+        #print("aaaaaa")
+        proof_hash = candidate_block.hash_header()
+        if proof_hash[:DIFFICULTY] == '0'*DIFFICULTY :
+            break
+        if int((time.time()-start_time) % 60) == 0:
+            # If any other node got the proof, stop searching
+            new_blockchain = consensus(blockchain)
+            if new_blockchain:
+                # (False: another node got proof first, new blockchain)
+                return False, new_blockchain
+        
+        incrementer += 1
+
+    # Once that number is found, we can return it as a proof of our work
+    return candidate_block, blockchain
 
 def mine(a, blockchain, node_pending_transactions):
+    
     BLOCKCHAIN = blockchain
     NODE_PENDING_TRANSACTIONS = node_pending_transactions
+    
     while True:
         """Mining is the only way that new coins can be created.
         In order to prevent too many coins to be created, the process
@@ -89,54 +113,55 @@ def mine(a, blockchain, node_pending_transactions):
         """
         # Get the last proof of work
         last_block = BLOCKCHAIN[-2]
-        last_public = last_block.next_public
+
+        if last_block.index == 0 :
+            time.sleep(1)
+            
+        NODE_PENDING_TRANSACTIONS = requests.get(MINER_NODE_URL + "/txion?update=" + MINER_ADDRESS).content
+        NODE_PENDING_TRANSACTIONS = json.loads(NODE_PENDING_TRANSACTIONS)
+        new_block_data = { "transactions": list(NODE_PENDING_TRANSACTIONS) }
+
+        new_block_index = last_block.index + 2
+        new_block_timestamp = time.time()
+        before_hash = BLOCKCHAIN[-1].hash_header()
+        cipher = elgamal.generate_keys(iNumBits=PUBLIC_KEY_SIZE, seed=int(before_hash, 16))
+        new_block_next_public = cipher
+        candidate_block = Block(new_block_index, new_block_timestamp, new_block_data, new_block_next_public)
+
         # Find the proof of work for the current block being mined
         # Note: The program will hang here until a new proof of work is found
-        proof = proof_of_work(last_public, BLOCKCHAIN)
+        proof = proof_of_work(last_block,candidate_block,BLOCKCHAIN)
         # If we didn't guess the proof, start mining again
         if not proof[0]:
             # Update blockchain and save it to file
             BLOCKCHAIN = proof[1]
             a.send(BLOCKCHAIN)
             continue
-        else:
+        else: 
             # Once we find a valid proof of work, we know we can mine a block so
             # ...we reward the miner by adding a transaction
             # First we load all pending transactions sent to the node server
-            NODE_PENDING_TRANSACTIONS = requests.get(MINER_NODE_URL + "/txion?update=" + MINER_ADDRESS).content
-            NODE_PENDING_TRANSACTIONS = json.loads(NODE_PENDING_TRANSACTIONS)
-        
+            
+            '''
             # Then we add the mining reward
             NODE_PENDING_TRANSACTIONS.append({
                 "from": "network",
                 "to": MINER_ADDRESS,
                 "amount": 1})
             # Now we can gather the data needed to create the new block
-            
-            new_block_data = {
-                "transactions": list(NODE_PENDING_TRANSACTIONS)
-            }
-            
-            new_block_index = last_block.index + 2
-            new_block_timestamp = time.time()
-            before_hash = BLOCKCHAIN[-1].hash_header()
-            cipher = elgamal.generate_keys(iNumBits=PUBLIC_KEY_SIZE, seed=int(before_hash, 16))
-            new_block_next_public = cipher
-
+            '''
             # Empty transaction list
             NODE_PENDING_TRANSACTIONS = []
-
             # Now create the new block                    
-            mined_block = Block(new_block_index, new_block_timestamp, new_block_data, new_block_next_public, proof[0])
-            BLOCKCHAIN.append(mined_block)
+            BLOCKCHAIN.append(proof[0])
             # print("before_public_key = " + str(proof[0].key.p * proof[0].key.q))
             print(json.dumps({
-                "index": mined_block.index,
-                "timestamp": str(mined_block.timestamp),
-                "body_hash": str(int(mined_block.body_hash, 16)),
-                "next_public": str(hex(mined_block.next_public.g)) + ", " + str(hex(mined_block.next_public.h)),
-                "previous_private": str(hex(mined_block.previous_private.x)),
-                "data": mined_block.data
+                "index": proof[0].index,
+                "timestamp": str(proof[0].timestamp),
+                "header_hash": str(int(proof[0].hash_header(), 16)),
+                "next_public": "( " + str(hex(proof[0].next_public.g)) + ", " + str(hex(proof[0].next_public.h)) + ", " + str(hex(proof[0].next_public.p)) +" )",
+                "previous_private": str(hex(proof[0].previous_private.x)),
+                "data": proof[0].data
             }, indent=4) + "\n")
             a.send(BLOCKCHAIN)
             requests.get(MINER_NODE_URL + "/blocks?update=" + MINER_ADDRESS)
