@@ -10,7 +10,7 @@ class PrivateKey(object):
 		self.iNumBits = iNumBits
 
 class PublicKey(object):
-	def __init__(self, p=None, g=None,h=None, iNumBits=0):
+	def __init__(self, p=None, g=None,h=None, x=None, iNumBits=0):
 		self.p = p
 		self.g = g
 		self.h = h
