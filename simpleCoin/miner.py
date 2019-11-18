@@ -15,20 +15,20 @@ node = Flask(__name__)
 
 #얼마뒤에 공개될지를 결정지을 변수
 time_ = 30
-PUBLIC_KEY_SIZE = 18
 flag_ = 0
 #몇개의 블록을 기준으로 public key size(난이도)를 조절할지
 term = 5
 start_time = 0
 
 class Block:
-    def __init__(self, index, timestamp, data, next_public, nonce=None, previous_private=None):
+    def __init__(self, index, timestamp, data, next_public, public_key_size, nonce=None, previous_private=None):
         self.index = index
         self.timestamp = timestamp
         self.data = data
         self.body_hash = self.body_hash() 
         self.next_public = next_public
         self.nonce = nonce
+        self.public_key_size = public_key_size
 
     def hash_header(self):
         sha = hashlib.sha256()
@@ -42,17 +42,18 @@ class Block:
         
 
 def create_genesis_block():
-    cipher = elgamal.generate_keys(seed=0xffffffffffffff,iNumBits=PUBLIC_KEY_SIZE)
-    return Block(0, time.time(), {"transactions": None}, cipher)
+    cipher = elgamal.generate_keys(seed=0xffffffffffffff,iNumBits=18)
+    return Block(0, time.time(), {"transactions": None}, cipher, 18)
 
 
 def create_second_block():
-    cipher = elgamal.generate_keys(seed=int(BLOCKCHAIN[0].hash_header(), 16),iNumBits = PUBLIC_KEY_SIZE)
-    return Block(1, time.time(), {"transactions": None}, cipher)
+    cipher = elgamal.generate_keys(seed=int(BLOCKCHAIN[0].hash_header(), 16),iNumBits = 18)
+    return Block(1, time.time(), {"transactions": None}, cipher, 18)
 
 # Node's blockchain copy
 BLOCKCHAIN = [create_genesis_block()]
 BLOCKCHAIN.append(create_second_block())
+
 """ Stores the transactions that this node has in a list.
 If the node you sent the transaction adds a block
 it will get accepted, but there is a chance it gets
@@ -60,8 +61,8 @@ discarded and your transaction goes back as if it was never
 processed"""
 NODE_PENDING_TRANSACTIONS = []
 
-def Calculate_Difficulty():
-    global flag_, start_time, time_, PUBLIC_KEY_SIZE
+def Calculate_Difficulty( difficulty ):
+    global flag_, start_time, time_
     
     if flag_ == 0 :
         start_time = time.time()
@@ -69,15 +70,17 @@ def Calculate_Difficulty():
 
     else :
         if time.time() - start_time > time_ : 
-            PUBLIC_KEY_SIZE = PUBLIC_KEY_SIZE - 1
+            difficulty = difficulty - 1
 
         elif time.time() - start_time < time_ :
-            PUBLIC_KEY_SIZE = PUBLIC_KEY_SIZE + 1
+            difficulty = difficulty + 1
 
         start_time = time.time()
 
+    return difficulty
 # TODO publicKey 를 받아 쌍이 되는 개인키를 찾는 함수.
 # 만약, 다른 노드가 먼저 발견하게 되면 False 를 반환한다.
+
 def proof_of_work(last_block, candidate_block, blockchain):
     i=0
     start_time = time.time()
@@ -116,6 +119,10 @@ def mine(a, blockchain, node_pending_transactions):
         if last_block.index == 0 :
             time.sleep(1)
             
+
+        if (last_block.index + 2) % term ==  2 : 
+            difficulty = Calculate_Difficulty(last_block.public_key_size)
+
         NODE_PENDING_TRANSACTIONS = requests.get(MINER_NODE_URL + "/txion?update=" + MINER_ADDRESS).content
         NODE_PENDING_TRANSACTIONS = json.loads(NODE_PENDING_TRANSACTIONS)
         NODE_PENDING_TRANSACTIONS.append({ "from": "network", "to": MINER_ADDRESS,"amount": 1})
@@ -124,9 +131,9 @@ def mine(a, blockchain, node_pending_transactions):
         new_block_index = last_block.index + 2
         new_block_timestamp = time.time()
         before_hash = BLOCKCHAIN[-1].hash_header()
-        cipher = elgamal.generate_keys(iNumBits=PUBLIC_KEY_SIZE, seed=int(before_hash, 16))
+        cipher = elgamal.generate_keys(iNumBits=difficulty, seed=int(before_hash, 16))
         new_block_next_public = cipher
-        candidate_block = Block(new_block_index, new_block_timestamp, new_block_data, new_block_next_public)
+        candidate_block = Block(new_block_index, new_block_timestamp, new_block_data, new_block_next_public,difficulty)
 
         # Find the proof of work for the current block being mined
         # Note: The program will hang here until a new proof of work is found
@@ -151,8 +158,6 @@ def mine(a, blockchain, node_pending_transactions):
             # Now we can gather the data needed to create the new block
             '''
             # Empty transaction list
-            if proof[0].index % term ==  2 : 
-                Calculate_Difficulty()
 
             NODE_PENDING_TRANSACTIONS = []
             # Now create the new block                    
@@ -164,6 +169,7 @@ def mine(a, blockchain, node_pending_transactions):
                 "header_hash": str(proof[0].hash_header()),
                 "next_public": "( " + str(hex(proof[0].next_public.g)) + ", " + str(hex(proof[0].next_public.h)) + ", " + str(hex(proof[0].next_public.p)) +" )",
                 "nonce": str(hex(proof[0].nonce)),
+                "public_key_size": str(hex(proof[0].public_key_size)),
                 "data": proof[0].data
             }, indent=4) + "\n")
             a.send(BLOCKCHAIN)
