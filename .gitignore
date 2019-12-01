@@ -10,3 +10,6 @@
 # Excutable File
 *.exe
 *.out
+
+.DS_Store
+.idea
