@@ -2,7 +2,7 @@
 more details.
 """
 
-# Write your generated adress here. All coins mined will go to this address
+# Write your generated address here. All coins mined will go to this address
 MINER_ADDRESS = "q3nf394hjg-random-miner-address-34nf3i4nflkn3oi"
 
 # Write your node url or ip. If you are running it localhost use default

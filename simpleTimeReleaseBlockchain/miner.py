@@ -9,6 +9,8 @@ import ecdsa
 # import codecs
 import elgamal
 from miner_config import MINER_ADDRESS, MINER_NODE_URL, PEER_NODES
+from typing import Optional
+
 # import os
 
 node = Flask(__name__)
@@ -47,7 +49,7 @@ class Block:
 
 
 def create_genesis_block():
-    cipher = elgamal.generate_keys(seed=0xffffffffffffff, iNumBits=18)
+    cipher = elgamal.generate_keys(seed=0xffffffffffffff, i_num_bits=18)
     return Block(0, time.time(), {"transactions": None}, cipher, 18)
 
 
@@ -84,7 +86,7 @@ def calculate_difficulty(difficulty):
 # TODO publicKey A function to find the paired private key by taking.
 # If other nodes are found first, False is returned..
 
-def proof_of_work(last_block, candidate_block, blockchain):
+def proof_of_work(last_block, candidate_block: Block, blockchain) -> tuple[Optional[Block], list[Block]]:
     i = 0
     init_time = time.time()
     while True:
@@ -92,20 +94,24 @@ def proof_of_work(last_block, candidate_block, blockchain):
 
         hash_header = int(candidate_block.hash_header(), last_block.public_key_size) % (last_block.difficult - 1) + 1
 
-        if last_block.next_public.h == elgamal.modexp(last_block.next_public.g, hash_header, last_block.next_public.p):
+        if last_block.next_public.h == elgamal.mod_exp(last_block.next_public.g, hash_header, last_block.next_public.p):
             break
 
         if (time.time() - init_time) > 30:
             init_time = time.time()
             new_blockchain = consensus(blockchain)
             if new_blockchain:
-                return False, new_blockchain
+                return None, new_blockchain
         i = i + 1
     return candidate_block, blockchain
 
 
-def mine(connection, blockchain, node_pending_transactions):
-    blockchain_data = blockchain
+def mine(connection,
+         blockchain: list[Block],
+         node_pending_transactions):
+    # declare with global keyword to modify blockchain and pending transactions
+    global BLOCKCHAIN, NODE_PENDING_TRANSACTIONS
+    BLOCKCHAIN = blockchain
     NODE_PENDING_TRANSACTIONS = node_pending_transactions
 
     while True:
@@ -114,7 +120,7 @@ def mine(connection, blockchain, node_pending_transactions):
         is slowed down by a proof of work algorithm.
         """
         # Get the last proof of work
-        last_block = blockchain_data[-1]
+        last_block = blockchain[-1]
         difficulty = 1
         if last_block.index == 0:
             time.sleep(1)
@@ -129,9 +135,9 @@ def mine(connection, blockchain, node_pending_transactions):
 
         new_block_index = last_block.index + 2
         new_block_timestamp = time.time()
-        before_header_hash_ = blockchain_data[-1].hash_header()
-        before_public = blockchain_data[-1].next_public
-        cipher = elgamal.generate_keys(iNumBits=difficulty,
+        before_header_hash_ = blockchain[-1].hash_header()
+        before_public = blockchain[-1].next_public
+        cipher = elgamal.generate_keys(i_num_bits=difficulty,
                                        seed=int(before_public.p + before_public.g + before_public.h))
         new_block_next_public = cipher
         candidate_block = Block(new_block_index, new_block_timestamp, new_block_data, new_block_next_public, difficulty,
@@ -139,12 +145,12 @@ def mine(connection, blockchain, node_pending_transactions):
 
         # Find the proof of work for the current block being mined
         # Note: The program will hang here until a new proof of work is found
-        proof = proof_of_work(last_block, candidate_block, blockchain_data)
+        proof = proof_of_work(last_block, candidate_block, blockchain)
         # If we didn't guess the proof, start mining again
         if not proof[0]:
             # Update blockchain and save it to file
-            blockchain_data = proof[1]
-            connection.send(blockchain_data)
+            blockchain = proof[1]
+            connection.send(blockchain)
             continue
         else:
             # Once we find a valid proof of work, we know we can mine a block so
@@ -163,7 +169,7 @@ def mine(connection, blockchain, node_pending_transactions):
 
             NODE_PENDING_TRANSACTIONS = []
             # Now create the new block                    
-            blockchain_data.append(proof[0])
+            blockchain.append(proof[0])
             # print("before_public_key = " + str(proof[0].key.p * proof[0].key.q))
             print(json.dumps({
                 "index": str(proof[0].index),
@@ -177,7 +183,7 @@ def mine(connection, blockchain, node_pending_transactions):
                 "nonce": "( " + str(proof[0].nonce) + " )",
                 "data": proof[0].data
             }, indent=4) + "\n")
-            connection.send(blockchain_data)
+            connection.send(blockchain)
             requests.get(MINER_NODE_URL + "/blocks?update=" + MINER_ADDRESS)
 
 
@@ -197,7 +203,8 @@ def find_new_chains():
     return other_chains
 
 
-def consensus(blockchain):
+def consensus(blockchain) -> Optional[list[Block]]:
+    global BLOCKCHAIN
     # Get the blocks from other nodes
     other_chains = find_new_chains()
     # If our chain isn't longest, then we store the longest chain
@@ -209,7 +216,7 @@ def consensus(blockchain):
     # If the longest chain wasn't ours, then we set our chain to the longest
     if longest_chain == BLOCKCHAIN:
         # Keep searching for proof
-        return False
+        return None
     else:
         # Give up searching proof, update chain and start over again
         BLOCKCHAIN = longest_chain
@@ -217,8 +224,9 @@ def consensus(blockchain):
 
 
 def validate_blockchain(block):
-    """Validate the submitted chain. If hashes are not correct, rULrd9xIYYgm5D1yUHAj9axyrib0R3chDnJJ2lDiKIwCFFAFYWrkXU7sPWY4RLccMcOQQ+KDvPuOxrlkl0Y+1hw==32
-    eturn false
+    """Validate the submitted chain. If hashes are not correct,
+    rULrd9xIYYgm5D1yUHAj9axyrib0R3chDnJJ2lDiKIwCFFAFYWrkXU7sPWY4RLccMcOQQ+KDvPuOxrlkl0Y+1hw==32
+    return false
     block(str): json
     """
     return True
@@ -295,7 +303,8 @@ def validate_signature(public_key, signature, message):
     # Try changing into an if/else statement as except is too broad.
     try:
         return vk.verify(signature, message.encode())
-    except:
+    except ecdsa.BadSignatureError:
+        print(f"Signature {signature} is not valid!")
         return False
 
 

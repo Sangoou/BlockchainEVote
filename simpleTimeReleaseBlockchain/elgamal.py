@@ -30,14 +30,14 @@ def gcd(a, b):
 
 
 # computes base^exp mod modulus
-def modexp(base, exp, modulus):
+def mod_exp(base, exp, modulus):
     return pow(base, exp, modulus)
 
 
 # solovay-strassen primality test.  tests if num is prime
-def SS(num, iConfidence):
+def solovay_strassen(num, i_confidence):
     # ensure confidence of t
-    for i in range(iConfidence):
+    for i in range(i_confidence):
         # choose random a between 1 and n-2
         a = random.randint(1, num - 1)
 
@@ -46,7 +46,7 @@ def SS(num, iConfidence):
             return False
 
         # declares n prime if jacobi(a, n) is congruent to a^((n-1)/2) mod n
-        if not jacobi(a, num) % num == modexp(a, (num - 1) // 2, num):
+        if not jacobi(a, num) % num == mod_exp(a, (num - 1) // 2, num):
             return False
 
     # if there have been t iterations without failure, num is believed to be prime
@@ -107,38 +107,38 @@ def find_primitive_root(p, seed):
         g = random.randint(2, p - 1)
         # g is a primitive root if for all prime factors of p-1, p[i]
         # g^((p-1)/p[i]) (mod p) is not congruent to 1
-        if not (modexp(g, (p - 1) // p1, p) == 1):
-            if not modexp(g, (p - 1) // p2, p) == 1:
+        if not (mod_exp(g, (p - 1) // p1, p) == 1):
+            if not mod_exp(g, (p - 1) // p2, p) == 1:
                 return g
 
 
 # find n bit prime
-def find_prime(iNumBits, iConfidence, seed):
+def find_prime(i_num_bits, i_confidence, seed):
     random.seed(seed)
     # keep testing until one is found
-    while (1):
+    while True:
         # generate potential prime randomly
-        p = random.randint(2 ** (iNumBits - 2), 2 ** (iNumBits - 1))
+        p = random.randint(2 ** (i_num_bits - 2), 2 ** (i_num_bits - 1))
         # make sure it is odd
-        while (p % 2 == 0):
-            p = random.randint(2 ** (iNumBits - 2), 2 ** (iNumBits - 1))
+        while p % 2 == 0:
+            p = random.randint(2 ** (i_num_bits - 2), 2 ** (i_num_bits - 1))
 
         # keep doing this if the solovay-strassen test fails
-        while (not SS(p, iConfidence)):
-            p = random.randint(2 ** (iNumBits - 2), 2 ** (iNumBits - 1))
-            while (p % 2 == 0):
-                p = random.randint(2 ** (iNumBits - 2), 2 ** (iNumBits - 1))
+        while not solovay_strassen(p, i_confidence):
+            p = random.randint(2 ** (i_num_bits - 2), 2 ** (i_num_bits - 1))
+            while p % 2 == 0:
+                p = random.randint(2 ** (i_num_bits - 2), 2 ** (i_num_bits - 1))
 
         # if p is prime compute p = 2*p + 1
         # if p is prime, we have succeeded; else, start over
         p = p * 2 + 1
-        if SS(p, iConfidence):
+        if solovay_strassen(p, i_confidence):
             return p
 
 
 # encodes bytes to integers mod p.  reads bytes from file
-def encode(sPlaintext, iNumBits):
-    byte_array = bytearray(sPlaintext, 'utf-16')
+def encode(s_plaintext, i_num_bits):
+    byte_array = bytearray(s_plaintext, 'utf-16')
 
     # z is the array of integers mod p
     z = []
@@ -146,7 +146,7 @@ def encode(sPlaintext, iNumBits):
     # each encoded integer will be a linear combination of k message bytes
     # k must be the number of bits in the prime divided by 8 because each
     # message byte is 8 bits long
-    k = iNumBits // 8
+    k = i_num_bits // 8
 
     # j marks the jth encoded integer
     # j will start at 0 but make it -k because j will be incremented during first iteration
@@ -173,7 +173,7 @@ def encode(sPlaintext, iNumBits):
 
 
 # decodes integers to the original message bytes
-def decode(aiPlaintext, iNumBits):
+def decode(plaintext_list, i_num_bits):
     # bytes array will hold the decoded original message bytes
     bytes_array = []
 
@@ -181,10 +181,10 @@ def decode(aiPlaintext, iNumBits):
     # each encoded integer is a linear combination of k message bytes
     # k must be the number of bits in the prime divided by 8 because each
     # message byte is 8 bits long
-    k = iNumBits // 8
+    k = i_num_bits // 8
 
     # num is an integer in list aiPlaintext
-    for num in aiPlaintext:
+    for num in plaintext_list:
         # get the k message bytes from the integer, i counts from 0 to k-1
         for i in range(k):
             # temporary integer
@@ -214,35 +214,35 @@ def decode(aiPlaintext, iNumBits):
     # 7696128 - (111 * (2^(8*1))) = 7667712
     # m[2] = 7667712 / (2^(8*2)) = 117 = 'u'
 
-    decodedText = bytearray(b for b in bytes_array).decode('utf-16')
+    decoded_text = bytearray(b for b in bytes_array).decode('utf-16')
 
-    return decodedText
+    return decoded_text
 
 
 # generates public key K1 (p, g, h) and private key K2 (p, g, x)
-def generate_keys(seed, iNumBits, iConfidence=32):
+def generate_keys(seed, i_num_bits, i_confidence=32):
     # p is the prime
     # g is the primitive root
     # x is random in (0, p-1) inclusive
     # h = g ^ x mod p
 
-    p = find_prime(iNumBits, iConfidence, seed)
+    p = find_prime(i_num_bits, i_confidence, seed)
     g = find_primitive_root(p, seed)
-    h = modexp(g, 2, p)
+    # h = modexp(g, 2, p)
     # x = random.randint( 1, p - 1)
     # h = modexp(g,x,p)
 
     h = random.randint(1, p - 1)
 
-    publicKey = PublicKey(p, g, h, iNumBits)
+    public_key = PublicKey(p, g, h, i_num_bits)
     # privateKey = PrivateKey(p, g, x, iNumBits)
 
-    return publicKey
+    return public_key
 
 
 # encrypts a string sPlaintext using the public key k
-def encrypt(key, sPlaintext):
-    z = encode(sPlaintext, key.iNumBits)
+def encrypt(key, s_plaintext):
+    z = encode(s_plaintext, key.iNumBits)
 
     # cipher_pairs list will hold pairs (c, d) corresponding to each integer in z
     cipher_pairs = []
@@ -251,17 +251,17 @@ def encrypt(key, sPlaintext):
         # pick random y from (0, p-1) inclusive
         y = random.randint(0, key.p)
         # c = g^y mod p
-        c = modexp(key.g, y, key.p)
+        c = mod_exp(key.g, y, key.p)
         # d = ih^y mod p
-        d = (i * modexp(key.h, y, key.p)) % key.p
+        d = (i * mod_exp(key.h, y, key.p)) % key.p
         # add the pair to the cipher pairs list
         cipher_pairs.append([c, d])
 
-    encryptedStr = ""
+    encrypted_str = ""
     for pair in cipher_pairs:
-        encryptedStr += str(pair[0]) + ' ' + str(pair[1]) + ' '
+        encrypted_str += str(pair[0]) + ' ' + str(pair[1]) + ' '
 
-    return encryptedStr
+    return encrypted_str
 
 
 # performs decryption on the cipher pairs found in Cipher using
@@ -270,45 +270,43 @@ def decrypt(key, cipher_string):
     # decrypts each pair and adds the decrypted integer to list of plaintext integers
     plaintext = []
 
-    cipherArray = cipher_string.split()
-    if (not len(cipherArray) % 2 == 0):
+    cipher_array = cipher_string.split()
+    if not len(cipher_array) % 2 == 0:
         return "Malformed Cipher Text"
-    for i in range(0, len(cipherArray), 2):
+    for i in range(0, len(cipher_array), 2):
         # c = first number in pair
-        c = int(cipherArray[i])
+        c = int(cipher_array[i])
         # d = second number in pair
-        d = int(cipherArray[i + 1])
+        d = int(cipher_array[i + 1])
 
         # s = c^x mod p
-        s = modexp(c, key.x, key.p)
+        s = mod_exp(c, key.x, key.p)
         # plaintext integer = ds^-1 mod p
-        plain = (d * modexp(s, key.p - 2, key.p)) % key.p
+        plain_i = (d * mod_exp(s, key.p - 2, key.p)) % key.p
         # add plain to list of plaintext integers
-        plaintext.append(plain)
+        plaintext.append(plain_i)
 
-    decryptedText = decode(plaintext, key.iNumBits)
+    decrypted_text = decode(plaintext, key.iNumBits)
 
     # remove trailing null bytes
-    decryptedText = "".join([ch for ch in decryptedText if ch != '\x00'])
+    decrypted_text = "".join([ch for ch in decrypted_text if ch != '\x00'])
 
-    return decryptedText
+    return decrypted_text
 
 
 if __name__ == '__main__':
     assert (sys.version_info >= (3, 4))
-    pub = generate_keys(seed=833050814021254693158343911234888353695402778102174580258852673738983005, iNumBits=20)
-    # message = "My name is Ryan."
-    # cipher = encrypt(pub, message)
-    # plain = decrypt(priv, cipher)
-
+    pub = generate_keys(seed=833050814021254693158343911234888353695402778102174580258852673738983005, i_num_bits=20)
+    private_key = None
     for i in range(1, pub.p):
-        if pub.h == modexp(pub.g, i, pub.p):
-            priv = PrivateKey(pub.p, pub.g, i, pub.iNumBits)
+        if pub.h == mod_exp(pub.g, i, pub.p):
+            private_key = PrivateKey(pub.p, pub.g, i, pub.iNumBits)
     print(hex(pub.g))
     print(hex(pub.h))
     print(hex(pub.p))
-    message = "My name is Ryan."
-    cipher = encrypt(pub, message)
-    plain = decrypt(priv, cipher)
-    print(message)
-    print(plain)
+    if private_key:
+        message = "Private key is found"
+        cipher = encrypt(pub, message)
+        plain = decrypt(private_key, cipher)
+        print(message)
+        print(plain)
