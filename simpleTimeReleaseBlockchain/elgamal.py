@@ -4,19 +4,20 @@ import sys
 
 
 class PrivateKey(object):
-    def __init__(self, p=None, g=None, x=None, iNumBits=0):
+    def __init__(self, p=None, g=None, x=None, i_num_bits=0):
         self.p = p
         self.g = g
         self.x = x
-        self.iNumBits = iNumBits
+        self.difficulty = i_num_bits
 
 
 class PublicKey(object):
-    def __init__(self, p=None, g=None, h=None, x=None, iNumBits=0):
+    def __init__(self, p=None, g=None, h=None, x=None, i_num_bits=0):
         self.p = p
         self.g = g
         self.h = h
-        self.iNumBits = iNumBits
+        self.difficulty = i_num_bits
+        self.x = x
 
 
 # computes the greatest common denominator of a and b.  assumes a > b
@@ -37,7 +38,7 @@ def mod_exp(base, exp, modulus):
 # solovay-strassen primality test.  tests if num is prime
 def solovay_strassen(num, i_confidence):
     # ensure confidence of t
-    for i in range(i_confidence):
+    for idx in range(i_confidence):
         # choose random a between 1 and n-2
         a = random.randint(1, num - 1)
 
@@ -82,7 +83,7 @@ def jacobi(a, n):
     elif a % 2 == 0:
         return jacobi(2, n) * jacobi(a // 2, n)
     # law of quadratic reciprocity
-    # if a is odd and a is coprime to n
+    # if a is odd and a is co-prime to n
     else:
         if a % 4 == 3 and n % 4 == 3:
             return -1 * jacobi(n, a)
@@ -103,7 +104,7 @@ def find_primitive_root(p, seed):
     p2 = (p - 1) // p1
 
     # test random g's until one is found that is a primitive root mod p
-    while (1):
+    while True:
         g = random.randint(2, p - 1)
         # g is a primitive root if for all prime factors of p-1, p[i]
         # g^((p-1)/p[i]) (mod p) is not congruent to 1
@@ -152,16 +153,16 @@ def encode(s_plaintext, i_num_bits):
     # j will start at 0 but make it -k because j will be incremented during first iteration
     j = -1 * k
     # num is the summation of the message bytes
-    num = 0
+    # num = 0
     # i iterates through byte array
-    for i in range(len(byte_array)):
+    for idx in range(len(byte_array)):
         # if i is divisible by k, start a new encoded integer
-        if i % k == 0:
+        if idx % k == 0:
             j += k
-            num = 0
+            # num = 0
             z.append(0)
         # add the byte multiplied by 2 raised to a multiple of 8
-        z[j // k] += byte_array[i] * (2 ** (8 * (i % k)))
+        z[j // k] += byte_array[idx] * (2 ** (8 * (idx % k)))
 
     # example
     # if n = 24, k = n / 8 = 3
@@ -186,20 +187,20 @@ def decode(plaintext_list, i_num_bits):
     # num is an integer in list aiPlaintext
     for num in plaintext_list:
         # get the k message bytes from the integer, i counts from 0 to k-1
-        for i in range(k):
+        for idx in range(k):
             # temporary integer
             temp = num
             # j goes from i+1 to k-1
-            for j in range(i + 1, k):
+            for j in range(idx + 1, k):
                 # get remainder from dividing integer by 2^(8*j)
                 temp = temp % (2 ** (8 * j))
             # message byte representing a letter is equal to temp divided by 2^(8*i)
-            letter = temp // (2 ** (8 * i))
+            letter = temp // (2 ** (8 * idx))
             # add the message byte letter to the byte array
             bytes_array.append(letter)
             # subtract the letter multiplied by the power of two from num so
             # so the next message byte can be found
-            num = num - (letter * (2 ** (8 * i)))
+            num = num - (letter * (2 ** (8 * idx)))
 
     # example
     # if "You" were encoded.
@@ -228,9 +229,9 @@ def generate_keys(seed, i_num_bits, i_confidence=32):
 
     p = find_prime(i_num_bits, i_confidence, seed)
     g = find_primitive_root(p, seed)
-    # h = modexp(g, 2, p)
+    # h = mod_exp(g, 2, p)
     # x = random.randint( 1, p - 1)
-    # h = modexp(g,x,p)
+    # h = mod_exp(g,x,p)
 
     h = random.randint(1, p - 1)
 
@@ -242,18 +243,18 @@ def generate_keys(seed, i_num_bits, i_confidence=32):
 
 # encrypts a string sPlaintext using the public key k
 def encrypt(key, s_plaintext):
-    z = encode(s_plaintext, key.iNumBits)
+    z = encode(s_plaintext, key.difficulty)
 
     # cipher_pairs list will hold pairs (c, d) corresponding to each integer in z
     cipher_pairs = []
     # i is an integer in z
-    for i in z:
+    for i_code in z:
         # pick random y from (0, p-1) inclusive
         y = random.randint(0, key.p)
         # c = g^y mod p
         c = mod_exp(key.g, y, key.p)
         # d = ih^y mod p
-        d = (i * mod_exp(key.h, y, key.p)) % key.p
+        d = (i_code * mod_exp(key.h, y, key.p)) % key.p
         # add the pair to the cipher pairs list
         cipher_pairs.append([c, d])
 
@@ -273,11 +274,11 @@ def decrypt(key, cipher_string):
     cipher_array = cipher_string.split()
     if not len(cipher_array) % 2 == 0:
         return "Malformed Cipher Text"
-    for i in range(0, len(cipher_array), 2):
+    for idx in range(0, len(cipher_array), 2):
         # c = first number in pair
-        c = int(cipher_array[i])
+        c = int(cipher_array[idx])
         # d = second number in pair
-        d = int(cipher_array[i + 1])
+        d = int(cipher_array[idx + 1])
 
         # s = c^x mod p
         s = mod_exp(c, key.x, key.p)
@@ -286,7 +287,7 @@ def decrypt(key, cipher_string):
         # add plain to list of plaintext integers
         plaintext.append(plain_i)
 
-    decrypted_text = decode(plaintext, key.iNumBits)
+    decrypted_text = decode(plaintext, key.difficulty)
 
     # remove trailing null bytes
     decrypted_text = "".join([ch for ch in decrypted_text if ch != '\x00'])
@@ -300,7 +301,7 @@ if __name__ == '__main__':
     private_key = None
     for i in range(1, pub.p):
         if pub.h == mod_exp(pub.g, i, pub.p):
-            private_key = PrivateKey(pub.p, pub.g, i, pub.iNumBits)
+            private_key = PrivateKey(pub.p, pub.g, i, pub.difficulty)
     print(hex(pub.g))
     print(hex(pub.h))
     print(hex(pub.p))

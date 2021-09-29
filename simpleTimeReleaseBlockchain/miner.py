@@ -223,12 +223,13 @@ def consensus(blockchain) -> Optional[list[Block]]:
         return BLOCKCHAIN
 
 
-def validate_blockchain(block):
+def validate_blockchain(block: Block):
     """Validate the submitted chain. If hashes are not correct,
     rULrd9xIYYgm5D1yUHAj9axyrib0R3chDnJJ2lDiKIwCFFAFYWrkXU7sPWY4RLccMcOQQ+KDvPuOxrlkl0Y+1hw==32
     return false
     block(str): json
     """
+    print(block)
     return True
 
 
