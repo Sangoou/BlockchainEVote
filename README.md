@@ -1,4 +1,4 @@
-# Blockchain_E_Vote
+# Blockchain Electronics Voting
 This project is a fork from [Sangoou's project](https://github.com/Sangoou/BlockchainEVote). Some English translation
 has been added, and some code cleanup has been done in this fork.
 
