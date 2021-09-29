@@ -2,7 +2,7 @@
 
 ## Directory Structure
 
-* Reference Paper
+* reference
     - summary of papers referenced during this project
 
 * app

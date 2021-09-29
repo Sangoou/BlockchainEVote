@@ -37,7 +37,7 @@ def wallet():
             print("""=========================================\n
     IMPORTANT: save this credentials or you won't be able to recover your wallet\n
     =========================================\n""")
-            generate_ECDSA_keys()
+            generate_ecdsa_keys()
         elif response == "2":
             addr_from = input("From: introduce your wallet address (public key)\n")
             private_key = input("Introduce your private key\n")
@@ -67,7 +67,7 @@ def send_transaction(addr_from, private_key, addr_to, amount):
     # addr_to="SD5IZAuFixM3PTmkm5ShvLm1tbDNOmVlG7tg6F5r7VHxPNWkNKbzZfa+JdKmfBAIhWs9UKnQLOOL1U+R3WxcsQ=="
 
     if len(private_key) == 64:
-        signature, message = sign_ECDSA_msg(private_key)
+        signature, message = sign_ecdsa_msg(private_key)
         url = 'http://localhost:5000/txion'
         payload = {"from": addr_from,
                    "to": addr_to,
@@ -90,7 +90,7 @@ def check_transactions():
     print(res.text)
 
 
-def generate_ECDSA_keys():
+def generate_ecdsa_keys():
     """This function takes care of creating your private and public (your address) keys.
     It's very important you don't lose any of them or those wallets will be lost
     forever. If someone else get access to your private key, you risk losing your coins.
@@ -98,11 +98,11 @@ def generate_ECDSA_keys():
     private_key: str
     public_ley: base64 (to make it shorter)
     """
-    sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1) #this is your sign (private key)
-    private_key = sk.to_string().hex() #convert your private key to hex
-    vk = sk.get_verifying_key() #this is your verification key (public key)
+    sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)  # this is your sign (private key)
+    private_key = sk.to_string().hex()  # convert your private key to hex
+    vk = sk.get_verifying_key()  # this is your verification key (public key)
     public_key = vk.to_string().hex()
-    #we are going to encode the public key to make it shorter
+    # we are going to encode the public key to make it shorter
     public_key = base64.b64encode(bytes.fromhex(public_key))
 
     filename = input("Write the name of your new address: ") + ".txt"
@@ -110,7 +110,8 @@ def generate_ECDSA_keys():
         f.write("Private key: {0}\nWallet address / Public key: {1}".format(private_key, public_key.decode()))
     print("Your new address and private key are now in the file {0}".format(filename))
 
-def sign_ECDSA_msg(private_key):
+
+def sign_ecdsa_msg(private_key):
     """Sign the message to be sent
     private_key: must be hex
 
