@@ -1,6 +1,4 @@
 import random
-# import math
-import sys
 
 
 class PrivateKey(object):
