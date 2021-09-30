@@ -121,9 +121,9 @@ def sign_ecdsa_msg(private_key):
     """
     # Get timestamp, round it, make it into a string and encode it to bytes
     message = str(round(time.time()))
-    bmessage = message.encode()
+    binary_msg = message.encode()
     sk = ecdsa.SigningKey.from_string(bytes.fromhex(private_key), curve=ecdsa.SECP256k1)
-    signature = base64.b64encode(sk.sign(bmessage))
+    signature = base64.b64encode(sk.sign(binary_msg))
     return signature, message
 
 

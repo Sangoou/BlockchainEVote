@@ -12,12 +12,12 @@ class PrivateKey(object):
 
 
 class PublicKey(object):
-    def __init__(self, p=None, g=None, h=None, x=None, i_num_bits=0):
+    def __init__(self, p=None, g=None, h=None, i_num_bits=0):
         self.p = p
         self.g = g
         self.h = h
         self.difficulty = i_num_bits
-        self.x = x
+        self.x = None
 
 
 # computes the greatest common denominator of a and b.  assumes a > b
@@ -241,7 +241,7 @@ def generate_keys(seed, i_num_bits, i_confidence=32):
     return public_key
 
 
-# encrypts a string sPlaintext using the public key k
+# encrypts a string using the public key k
 def encrypt(key, s_plaintext):
     z = encode(s_plaintext, key.difficulty)
 
@@ -294,20 +294,3 @@ def decrypt(key, cipher_string):
 
     return decrypted_text
 
-
-if __name__ == '__main__':
-    assert (sys.version_info >= (3, 4))
-    pub = generate_keys(seed=833050814021254693158343911234888353695402778102174580258852673738983005, i_num_bits=20)
-    private_key = None
-    for i in range(1, pub.p):
-        if pub.h == mod_exp(pub.g, i, pub.p):
-            private_key = PrivateKey(pub.p, pub.g, i, pub.difficulty)
-    print(hex(pub.g))
-    print(hex(pub.h))
-    print(hex(pub.p))
-    if private_key:
-        message = "Private key is found"
-        cipher = encrypt(pub, message)
-        plain = decrypt(private_key, cipher)
-        print(message)
-        print(plain)
