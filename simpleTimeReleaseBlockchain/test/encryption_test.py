@@ -21,10 +21,10 @@ class TestElgamalEncryption(unittest.TestCase):
         private_key = None
         for i in range(1, self.pub.p):
             if self.pub.h == elgamal.mod_exp(self.pub.g, i, self.pub.p):
-                private_key = elgamal.PrivateKey(self.pub.p, self.pub.g, i, self.pub.difficulty)
+                private_key = elgamal.PrivateKey(self.pub.p, self.pub.g, i, self.pub.bit_length)
         # if found private key, assert the key validation
         if private_key:
-            message = "Private key is found"
+            message = "Private key is found and here is a test of the elgamal crypto system."
             cipher = elgamal.encrypt(self.pub, message)
             plain = elgamal.decrypt(private_key, cipher)
             self.assertEqual(message, plain, "Private key is not valid!")

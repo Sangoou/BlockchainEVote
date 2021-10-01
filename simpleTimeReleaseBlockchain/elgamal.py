@@ -1,25 +1,136 @@
+"""
+Implementation of the ElGamal Cryptosystem
+Author: Ryan Riddle (ryan.riddle@uky.edu)
+Date of Completion: April 20, 2012
+
+Revised by Fanghao Yang (yangfanghao@gmail.com)
+Date of Revision: Oct 1, 2021
+
+REVISION
+
+Revision has been done to clean up the code, add type hints, add enough docstring, rename
+names of arguments and methods based on PEP-8.
+
+DESCRIPTION AND IMPLEMENTATION
+
+This python program implements the ElGamal crypto-system.  The program is capable of both
+encrypting and decrypting a message.  At execution the user will be prompted for three things:
+       1) a number n which specifies the length of the prime to be generated
+       2) a number t which specifies the desired confidence that the generated prime is actually prime
+       3) a string that contains the message he wishes to encrypt and decrypt
+
+After the user has provided the necessary information the program will generate a pair
+of keys (K1, K2) used for encryption and decryption.  K1 is the public key and contains
+three integers (p, g, h).
+       p is an n bit prime.  The probability that p is actually prime is 1-(2^-t)
+       g is the square of a primitive root mod p
+       h = g^x mod p; x is randomly chosen, 1 <= x < p
+h is computed using fast modular exponentiation, implemented as mod_exp ( base, exp, modulus )
+K2 is the private key and contains three integers (p, g, x) that are described above.
+K1 and K2 are written to files named K1 and K2.
+
+Next the program encodes the bytes of the message into integers z[i] < p.
+The module for this is named encode() and is described further where it is implemented.
+
+After the message has been encoded into integers, the integers are encrypted and written
+to a file, Ciphertext.  The encryption procedure is implemented in encrypt().  It works
+as follows:
+       Each corresponds to a pair (c, d) that is written to Ciphertext.
+       For each integer z[i]:
+               c[i] = g^y (mod p).  d[i] = z[i]h^y (mod p)
+               where y is chosen randomly, 0 <= y < p
+
+The decryption module decrypt() reads each pair of integers from Ciphertext and converts
+them back to encoded integers.  It is implemented as follows:
+       s = c[i]^x (mod p)
+       z[i] = d[i]*s^-1 (mod p)
+
+The decode() module takes the integers produced from the decryption module and separates
+them into the bytes received in the initial message.  These bytes are written to the file
+Plaintext.
+
+HURDLES CLEARED DURING IMPLEMENTATION
+
+modular exponentiation
+The first problem I encountered was in implementing the fast modular exponentiator, mod_exp().
+At first it did not terminate when given a negative number.  I quickly figured out that when
+performing integer division on negative numbers, the result is rounded down rather than toward
+zero.
+
+finding primitive roots
+Understanding the definition of primitive roots was not enough to find one efficiently.  I had
+search the web to understand how primitive roots can be found.  Wikipedia helped me understand
+I needed to test potential primitive roots multiplicative order.  The algorithm found at
+http://modular.math.washington.edu/edu/2007/spring/ent/ent-html/node31.html
+is the one I implemented.
+
+finding large prime numbers
+After implementing the Solovay-Strassen primality test I found it was difficult to compute 100
+bit primes even with probability 1/2.  I met with Professor Klapper to discuss this problem and he
+suggested I quit running the program on UK's shared "multilab" and I speed up my Jacobi algorithm
+by using branches to find powers of -1 rather than actually exponentiating them.  After doing this
+I was able to find 500 bit primes in about 15 minutes.
+
+finding prime numbers with confidence > 2
+I found it took a long time to test primes with a large number of bits with confidence greater than
+two.  I went to the web again to read over the description of the Solovay-Strassen primality test
+and realized jacobi(a, n) should be congruent to mod_exp(a, (n-1)/2, n) mod n.  I had only been checking
+that they were equal.  Before making this change I tried to find a 200 bit prime with confidence 100
+and gave up after an hour and a half.  After this change I was able to succeed after a couple of minutes.
+getting encoding and decoding to work
+
+I knew that encoding and decoding were implemented correctly because I could encode and decode a message
+and get the message I had started with.  But I did not receive the right message when I encrypted and
+decrypted it, despite having checked my encrypt and decrypt modules many times.  I fixed this by raising
+s to p-2 instead of -1 in the decryption function.
+"""
+
 import random
 
 
 class PrivateKey(object):
-    def __init__(self, p=None, g=None, x=None, i_num_bits=0):
+    def __init__(self, p: int, g: int, x: int, i_num_bits=0):
+        """Init private key structure for elgamal encryption.
+
+        Args:
+            p: a large prime number
+            g: a generator
+            x: a randomly chosen key
+            i_num_bits: bit length of the prime number
+        """
         self.p = p
         self.g = g
         self.x = x
-        self.difficulty = i_num_bits
+        self.bit_length = i_num_bits
 
 
 class PublicKey(object):
-    def __init__(self, p=None, g=None, h=None, i_num_bits=0):
+    def __init__(self, p: int, g: int, h: int, i_num_bits=0):
+        """Init public key structure for elgamal encryption.
+
+        Args:
+            p: a large prime number
+            g: a generator
+            h:
+            i_num_bits: bit length of the prime number
+        """
         self.p = p
         self.g = g
         self.h = h
-        self.difficulty = i_num_bits
+        self.bit_length = i_num_bits
         self.x = None
 
 
-# computes the greatest common denominator of a and b.  assumes a > b
-def gcd(a, b):
+def gcd(a: int, b: int) -> int:
+    """Computes the greatest common denominator of a and b.  assumes a > b.
+
+    Args:
+        a:
+        b:
+
+    Returns:
+        Greatest common denominator
+    """
     while b != 0:
         c = a % b
         a = b
@@ -28,13 +139,32 @@ def gcd(a, b):
     return a
 
 
-# computes base^exp mod modulus
-def mod_exp(base, exp, modulus):
+def mod_exp(base: int, exp: int, modulus: int) -> int:
+    """Calling Python built-in method to implement fast modular exponentiation.
+
+    Args:
+        base:
+        exp:
+        modulus:
+
+    Returns:
+
+    """
     return pow(base, exp, modulus)
 
 
-# solovay-strassen primality test.  tests if num is prime
-def solovay_strassen(num, i_confidence):
+def solovay_strassen(num: int, i_confidence: int) -> bool:
+    """ Solovay-strassen primality test.
+    This function tests if num is prime.
+    http://www-math.ucdenver.edu/~wcherowi/courses/m5410/ctcprime.html
+
+    Args:
+        num: input integer
+        i_confidence:
+
+    Returns:
+        if pass the test
+    """
     # ensure confidence of t
     for idx in range(i_confidence):
         # choose random a between 1 and n-2
@@ -52,8 +182,16 @@ def solovay_strassen(num, i_confidence):
     return True
 
 
-# computes the jacobi symbol of a, n
-def jacobi(a, n):
+def jacobi(a: int, n: int) -> int:
+    """Computes the jacobi symbol of a, n.
+
+    Args:
+        a:
+        n:
+
+    Returns:
+
+    """
     if a == 0:
         if n == 1:
             return 1
@@ -89,10 +227,18 @@ def jacobi(a, n):
             return jacobi(n, a)
 
 
-# finds a primitive root for prime p
-# this function was implemented from the algorithm described here:
-# http://modular.math.washington.edu/edu/2007/spring/ent/ent-html/node31.html
-def find_primitive_root(p, seed):
+def find_primitive_root(p: int, seed: int) -> int:
+    """Finds a primitive root for prime p.
+    This function was implemented from the algorithm described here:
+    http://modular.math.washington.edu/edu/2007/spring/ent/ent-html/node31.html
+
+    Args:
+        p:
+        seed:
+
+    Returns:
+        A primitive root for prime p.
+    """
     random.seed(seed)
     if p == 2:
         return 1
@@ -111,8 +257,17 @@ def find_primitive_root(p, seed):
                 return g
 
 
-# find n bit prime
-def find_prime(i_num_bits, i_confidence, seed):
+def find_prime(i_num_bits: int, i_confidence: int, seed: int) -> int:
+    """Find a prime number p for elgamal public key.
+
+    Args:
+        i_num_bits: number of binary bits for the prime number.
+        i_confidence:
+        seed: random generator seed
+
+    Returns:
+        A prime number with requested length of bits in binary.
+    """
     random.seed(seed)
     # keep testing until one is found
     while True:
@@ -135,8 +290,21 @@ def find_prime(i_num_bits, i_confidence, seed):
             return p
 
 
-# encodes bytes to integers mod p.  reads bytes from file
-def encode(s_plaintext, i_num_bits):
+#
+def encode(s_plaintext: str, i_num_bits: int) -> list[int]:
+    """Encodes bytes to integers mod p.
+    Example
+    if n = 24, k = n / 8 = 3
+    z[0] = (summation from i = 0 to i = k)m[i]*(2^(8*i))
+    where m[i] is the ith message byte
+
+    Args:
+        s_plaintext: String text to be encoded
+        i_num_bits: bit length of the prime number
+
+    Returns:
+        A list of encoded integers
+    """
     byte_array = bytearray(s_plaintext, 'utf-16')
 
     # z is the array of integers mod p
@@ -162,17 +330,31 @@ def encode(s_plaintext, i_num_bits):
         # add the byte multiplied by 2 raised to a multiple of 8
         z[j // k] += byte_array[idx] * (2 ** (8 * (idx % k)))
 
-    # example
-    # if n = 24, k = n / 8 = 3
-    # z[0] = (summation from i = 0 to i = k)m[i]*(2^(8*i))
-    # where m[i] is the ith message byte
-
-    # return array of encoded integers
     return z
 
 
-# decodes integers to the original message bytes
-def decode(plaintext_list, i_num_bits):
+def decode(encoded_integers: list[int], i_num_bits: int) -> str:
+    """Decodes integers to the original message bytes.
+    Example:
+    if "You" were encoded.
+    Letter        #ASCII
+    Y              89
+    o              111
+    u              117
+    if the encoded integer is 7696217 and k = 3
+    m[0] = 7696217 % 256 % 65536 / (2^(8*0)) = 89 = 'Y'
+    7696217 - (89 * (2^(8*0))) = 7696128
+    m[1] = 7696128 % 65536 / (2^(8*1)) = 111 = 'o'
+    7696128 - (111 * (2^(8*1))) = 7667712
+    m[2] = 7667712 / (2^(8*2)) = 117 = 'u'
+
+    Args:
+        encoded_integers:
+        i_num_bits: bit length of the prime number.
+
+    Returns:
+        Decoded message string.
+    """
     # bytes array will hold the decoded original message bytes
     bytes_array = []
 
@@ -183,7 +365,7 @@ def decode(plaintext_list, i_num_bits):
     k = i_num_bits // 8
 
     # num is an integer in list aiPlaintext
-    for num in plaintext_list:
+    for num in encoded_integers:
         # get the k message bytes from the integer, i counts from 0 to k-1
         for idx in range(k):
             # temporary integer
@@ -200,26 +382,22 @@ def decode(plaintext_list, i_num_bits):
             # so the next message byte can be found
             num = num - (letter * (2 ** (8 * idx)))
 
-    # example
-    # if "You" were encoded.
-    # Letter        #ASCII
-    # Y              89
-    # o              111
-    # u              117
-    # if the encoded integer is 7696217 and k = 3
-    # m[0] = 7696217 % 256 % 65536 / (2^(8*0)) = 89 = 'Y'
-    # 7696217 - (89 * (2^(8*0))) = 7696128
-    # m[1] = 7696128 % 65536 / (2^(8*1)) = 111 = 'o'
-    # 7696128 - (111 * (2^(8*1))) = 7667712
-    # m[2] = 7667712 / (2^(8*2)) = 117 = 'u'
-
     decoded_text = bytearray(b for b in bytes_array).decode('utf-16')
 
     return decoded_text
 
 
-# generates public key K1 (p, g, h) and private key K2 (p, g, x)
-def generate_keys(seed, i_num_bits, i_confidence=32):
+def generate_keys(seed: int, i_num_bits: int, i_confidence=32) -> PublicKey:
+    """Generates public key K1 (p, g, h) and private key K2 (p, g, x).
+
+    Args:
+        seed:
+        i_num_bits:
+        i_confidence:
+
+    Returns:
+
+    """
     # p is the prime
     # g is the primitive root
     # x is random in (0, p-1) inclusive
@@ -239,9 +417,17 @@ def generate_keys(seed, i_num_bits, i_confidence=32):
     return public_key
 
 
-# encrypts a string using the public key k
-def encrypt(key, s_plaintext):
-    z = encode(s_plaintext, key.difficulty)
+def encrypt(key: PublicKey, s_plaintext: str) -> str:
+    """Encrypts a string using the public key k.
+
+    Args:
+        key: public key for encryption
+        s_plaintext: input message string
+
+    Returns:
+        Encrypted text string.
+    """
+    z = encode(s_plaintext, key.bit_length)
 
     # cipher_pairs list will hold pairs (c, d) corresponding to each integer in z
     cipher_pairs = []
@@ -263,15 +449,23 @@ def encrypt(key, s_plaintext):
     return encrypted_str
 
 
-# performs decryption on the cipher pairs found in Cipher using
-# private key K2 and writes the decrypted values to file Plaintext
-def decrypt(key, cipher_string):
+def decrypt(key: PrivateKey, cipher_string: str) -> str:
+    """Performs decryption on the cipher pairs found in Cipher using
+    private key K2 and writes the decrypted values to file Plaintext.
+
+    Args:
+        key: Private key to decrypt message string.
+        cipher_string: encrypted cipher string.
+
+    Returns:
+        Decrypted message string.
+    """
     # decrypts each pair and adds the decrypted integer to list of plaintext integers
     plaintext = []
 
     cipher_array = cipher_string.split()
     if not len(cipher_array) % 2 == 0:
-        return "Malformed Cipher Text"
+        raise ValueError("Malformed Cipher Text")
     for idx in range(0, len(cipher_array), 2):
         # c = first number in pair
         c = int(cipher_array[idx])
@@ -285,10 +479,9 @@ def decrypt(key, cipher_string):
         # add plain to list of plaintext integers
         plaintext.append(plain_i)
 
-    decrypted_text = decode(plaintext, key.difficulty)
+    decrypted_text = decode(plaintext, key.bit_length)
 
     # remove trailing null bytes
     decrypted_text = "".join([ch for ch in decrypted_text if ch != '\x00'])
 
     return decrypted_text
-
