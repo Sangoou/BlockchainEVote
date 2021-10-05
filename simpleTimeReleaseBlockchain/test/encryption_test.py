@@ -1,4 +1,4 @@
-import simpleTimeReleaseBlockchain.elgamal as elgamal
+import simpleTimeReleaseBlockchain.crypto.elgamal as elgamal
 import unittest
 import sys
 

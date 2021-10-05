@@ -7,7 +7,7 @@ from flask import Flask, request
 from multiprocessing import Process, Pipe
 import ecdsa
 # import codecs
-import elgamal
+from simpleTimeReleaseBlockchain.crypto import elgamal
 from miner_config import MINER_ADDRESS, MINER_NODE_URL, PEER_NODES
 from typing import Optional
 
