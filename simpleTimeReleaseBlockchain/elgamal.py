@@ -86,39 +86,53 @@ s to p-2 instead of -1 in the decryption function.
 """
 
 import random
+from typing import Optional
 
 
 class PrivateKey(object):
-    def __init__(self, p: int, g: int, x: int, i_num_bits=0):
+    def __init__(self, p: int, g: int, x: int, bit_length=0):
         """Init private key structure for elgamal encryption.
 
         Args:
             p: a large prime number
             g: a generator
             x: a randomly chosen key
-            i_num_bits: bit length of the prime number
+            bit_length: bit length of the prime number
         """
         self.p = p
         self.g = g
         self.x = x
-        self.bit_length = i_num_bits
+        self.bit_length = bit_length
+
+    def __eq__(self, other):
+        if self.p == other.p and self.g == other.g and self.x == other.x and self.bit_length == other.bit_length:
+            return True
+        else:
+            return False
 
 
 class PublicKey(object):
-    def __init__(self, p: int, g: int, h: int, i_num_bits=0):
+    def __init__(self, p: int, g: int, h: int, bit_length=0):
         """Init public key structure for elgamal encryption.
 
         Args:
             p: a large prime number
             g: a generator
             h:
-            i_num_bits: bit length of the prime number
+            bit_length: bit length of the prime number
         """
         self.p = p
         self.g = g
         self.h = h
-        self.bit_length = i_num_bits
+        self.bit_length = bit_length
+        # optional attribute to carry its paired private key
         self.x = None
+
+    def __eq__(self, other):
+        if self.p == other.p and self.g == other.g and self.h == other.h and self.bit_length == other.bit_length:
+            return True
+        else:
+            return False
 
 
 def gcd(a: int, b: int) -> int:
@@ -387,12 +401,12 @@ def decode(encoded_integers: list[int], i_num_bits: int) -> str:
     return decoded_text
 
 
-def generate_keys(seed: int, i_num_bits: int, i_confidence=32) -> PublicKey:
+def generate_pub_key(seed: int, bit_length: int, i_confidence=32) -> PublicKey:
     """Generates public key K1 (p, g, h) and private key K2 (p, g, x).
 
     Args:
         seed:
-        i_num_bits:
+        bit_length:
         i_confidence:
 
     Returns:
@@ -403,7 +417,7 @@ def generate_keys(seed: int, i_num_bits: int, i_confidence=32) -> PublicKey:
     # x is random in (0, p-1) inclusive
     # h = g ^ x mod p
 
-    p = find_prime(i_num_bits, i_confidence, seed)
+    p = find_prime(bit_length, i_confidence, seed)
     g = find_primitive_root(p, seed)
     # h = mod_exp(g, 2, p)
     # x = random.randint( 1, p - 1)
@@ -411,10 +425,25 @@ def generate_keys(seed: int, i_num_bits: int, i_confidence=32) -> PublicKey:
 
     h = random.randint(1, p - 1)
 
-    public_key = PublicKey(p, g, h, i_num_bits)
+    public_key = PublicKey(p, g, h, bit_length)
     # privateKey = PrivateKey(p, g, x, iNumBits)
 
     return public_key
+
+
+def find_private_key(pubkey: PublicKey) -> Optional[PrivateKey]:
+    """Find private key with brute force.
+
+    Args:
+        pubkey: public key to find its paired private key.
+
+    Returns:
+        paired private key
+    """
+    for x in range(2, pubkey.p - 1):
+        if pubkey.h == mod_exp(pubkey.g, x, pubkey.p):
+            return PrivateKey(pubkey.p, pubkey.g, x, bit_length=pubkey.bit_length)
+    return None
 
 
 def encrypt(key: PublicKey, s_plaintext: str) -> str:

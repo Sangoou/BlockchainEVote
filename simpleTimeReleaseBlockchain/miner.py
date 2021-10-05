@@ -81,7 +81,7 @@ class Block:
 
 
 def create_genesis_block():
-    cipher = elgamal.generate_keys(seed=0xffffffffffffff, i_num_bits=18)
+    cipher = elgamal.generate_pub_key(seed=0xffffffffffffff, bit_length=18)
     return Block(0, time.time(), {"transactions": None}, cipher, 18)
 
 
@@ -115,12 +115,20 @@ def calculate_difficulty(difficulty: int):
     return difficulty
 
 
-# TODO publicKey A function to find the paired private key by taking.
-# If other nodes are found first, False is returned..
-
 def proof_of_work(last_block: Block,
                   candidate_block: Block,
                   blockchain: list[Block]) -> tuple[Optional[Block], list[Block]]:
+    """Find private key by double hash with different nonce values
+    TODO: If other nodes are found first, False is returned..
+
+    Args:
+        last_block:
+        candidate_block:
+        blockchain:
+
+    Returns:
+
+    """
     i = 0
     init_time = time.time()
     while True:
@@ -173,8 +181,8 @@ def mine(connection,
         prev_block_hash = blockchain[-1].hash_header()
         prev_public_key = blockchain[-1].public_key
         # generate new public key with previous public key
-        new_public_key = elgamal.generate_keys(i_num_bits=difficulty,
-                                               seed=int(prev_public_key.p + prev_public_key.g + prev_public_key.h))
+        new_public_key = elgamal.generate_pub_key(bit_length=difficulty,
+                                                  seed=int(prev_public_key.p + prev_public_key.g + prev_public_key.h))
         candidate_block = Block(new_block_index,
                                 new_block_timestamp,
                                 new_transactions,
