@@ -6,12 +6,10 @@ import base64
 from flask import Flask, request
 from multiprocessing import Process, Pipe
 import ecdsa
+import argparse
 # import codecs
 from simpleTimeReleaseBlockchain.crypto import elgamal
-from miner_config import MINER_ADDRESS, MINER_NODE_URL, PEER_NODES
 from typing import Optional
-
-# import os
 
 node = Flask(__name__)
 
@@ -21,6 +19,10 @@ flag_ = 0
 # How many blocks to adjust the public key size (difficulty level)
 term = 5
 start_time = 0
+# load default miner configuration from local JSON file
+MINER_ADDRESS = ""
+MINER_NODE_URL = ""
+PEER_NODES = []
 
 
 class Block:
@@ -281,12 +283,12 @@ def validate_blockchain(block: Block):
 
 @node.route('/blocks', methods=['GET'])
 def get_blocks():
-    # Load current blockchain. Only you should update your blockchain
-    BLOCKCHAIN = []
+    chain_to_send = []
     if request.args.get("update") == MINER_ADDRESS:
+        # Load current blockchain. Only you should update your blockchain
         global BLOCKCHAIN
         BLOCKCHAIN = b.recv()
-    chain_to_send = BLOCKCHAIN
+        chain_to_send = BLOCKCHAIN
     # Converts our blocks into dictionaries so we can send them as json objects later
     chain_to_send_json = []
     for block in chain_to_send:
@@ -366,6 +368,18 @@ def welcome_msg():
 
 if __name__ == '__main__':
     welcome_msg()
+    parser = argparse.ArgumentParser(description="Load miner configuration")
+    parser.add_argument('-c', '--config', nargs='?',
+                        default='default_miner_config.json',
+                        type=argparse.FileType('r'),
+                        help='miner config file, in JSON format')
+    args = parser.parse_args()
+    # load default miner configuration from local JSON file
+    _miner_config = json.load(args.config)
+    MINER_ADDRESS = _miner_config["MINER_ADDRESS"]
+    MINER_NODE_URL = _miner_config["MINER_NODE_URL"]
+    PEER_NODES = _miner_config["PEER_NODES"]
+    args.config.close()
     # Start mining
     a, b = Pipe()
     p1 = Process(target=mine, args=(a, BLOCKCHAIN, NODE_PENDING_TRANSACTIONS))
